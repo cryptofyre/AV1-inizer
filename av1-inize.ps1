@@ -5,8 +5,10 @@ $Host.UI.RawUI.WindowTitle = "AV1-inizer"
 $esc = [char]27
 [Console]::Write("$esc]9;4;0$esc\")
 
+$version = "1.1"
+
 # Display script title and version
-Write-Host "AV1-inizer v1.0 by cryptofyre" -ForegroundColor Cyan
+Write-Host "AV1-inizer v$($version) by cryptofyre" -ForegroundColor Cyan
 
 # Detect available GPUs/Display Adapters
 $gpus = Get-WmiObject Win32_VideoController | Select-Object -ExpandProperty Name
@@ -75,7 +77,7 @@ if ($totalFiles -eq 0) {
 Clear-Host
 
 # Display script title and version
-Write-Host "AV1-inizer v1.0 by cryptofyre" -ForegroundColor Cyan
+Write-Host "AV1-inizer v$($version) by cryptofyre" -ForegroundColor Cyan
 
 # Loop through each video file and convert it
 foreach ($file in $videoFiles) {
@@ -84,8 +86,40 @@ foreach ($file in $videoFiles) {
     $destFile = "${destDir}\$($file.BaseName)_AV1.mkv"
 	$skipFile = $false
 	
+	# Get video resolution
+    $videoInfo = ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0:s=x "$($file.FullName)"
+    $resolution = $videoInfo.Split("x")
+    $width = [int]$resolution[0]
+    $height = [int]$resolution[1]
+	$isPortrait = $height -gt $width
+
+# Determine RF setting based on resolution and orientation
+    if ($isPortrait) {
+        if ($width -le 852 -and $height -le 480) { # 480p Portrait
+            $rf = 24
+        } elseif ($width -le 1280 -and $height -le 720) { # 720p Portrait
+            $rf = 27
+        } elseif ($width -le 1920 -and $height -le 1080) { # 1080p Portrait
+            $rf = 27
+        } elseif ($width -le 2160 -and $height -le 3840) { # 4K Portrait
+            $rf = 29
+        }
+    } else {
+        if ($width -le 852 -and $height -le 480) { # 480p
+            $rf = 22
+        } elseif ($width -le 1280 -and $height -le 720) { # 720p
+            $rf = 25
+        } elseif ($width -le 1920 -and $height -le 1080) { # 1080p
+            $rf = 25
+        } elseif ($width -le 3840 -and $height -le 2160) { # 4K
+            $rf = 25
+        }
+    }
+    # Default RF value if resolution is outside specified ranges
+    $rf = $rf -or 30
+	
 	# Update the progress bar with current job information
-    $progressMessage = "Encoding file ($fileCounter of $totalFiles): $($file.Name)"
+    $progressMessage = "Encoding file ($fileCounter of $totalFiles): $($file.Name) using encoding level $($rf)"
     $progress = ($fileCounter / $totalFiles) * 100
     Write-Progress -Activity "Converting Videos" -Status $progressMessage -PercentComplete $progress -Id 1
     [Console]::Write("$esc]9;4;1;$([Math]::Round($progress))$esc\")
@@ -104,7 +138,7 @@ foreach ($file in $videoFiles) {
 
     try {
         # Attempt AV1 encoding with GPU and error handling
-        ffmpeg -i "$($file.FullName)" -c:v $encoder -preset p7 -rc constqp -qp 15 -c:a copy -c:s copy "$destFile" 2>$null
+        ffmpeg -i "$($file.FullName)" -c:v $encoder -crf $rf -b:v 0 -c:a copy -c:s copy "$destFile" 2>$null
 
         if ($LastExitCode -ne 0) { throw }
     } catch {
