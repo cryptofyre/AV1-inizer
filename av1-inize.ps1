@@ -1,3 +1,22 @@
+function Get-OSPlatform {
+    if ($IsWindows) { return "Windows" }
+    elseif ($IsLinux) { return "Linux" }
+    elseif ($IsMacOS) { return "macOS" }
+    else { return "Unknown" }
+}
+
+# Identify the operating system
+$os = Get-OSPlatform
+
+function Get-GPUs {
+    switch ($os) {
+        "Windows" { return Get-WmiObject Win32_VideoController | Select-Object -ExpandProperty Name }
+        "Linux" { return (& lspci | Where-Object { $_ -like "*VGA compatible controller*" }) -or "No GPUs detected" }
+        "macOS" { return (& system_profiler SPDisplaysDataType | Where-Object { $_ -like "*Chipset Model:*" }) -or "No GPUs detected" }
+        default { return "Unsupported OS for GPU detection" }
+    }
+}
+
 # Set the terminal window title
 $Host.UI.RawUI.WindowTitle = "AV1-inizer"
 
@@ -11,7 +30,7 @@ $version = "1.2"
 Write-Host "AV1-inizer v$($version) by cryptofyre" -ForegroundColor Cyan
 
 # Detect available GPUs/Display Adapters
-$gpus = Get-WmiObject Win32_VideoController | Select-Object -ExpandProperty Name
+$gpus = Get-GPUs
 Write-Host "Detected GPUs/Display Adapters:"
 $gpus | foreach { 
     if ($_ -match "NVIDIA") { Write-Host "- $_" -ForegroundColor Green }
