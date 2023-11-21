@@ -9,10 +9,24 @@ function Get-OSPlatform {
 $os = Get-OSPlatform
 
 function Get-GPUs {
-    switch ($os) {
+    switch (Get-OSPlatform) {
         "Windows" { return Get-WmiObject Win32_VideoController | Select-Object -ExpandProperty Name }
-        "Linux" { return (& lspci | Where-Object { $_ -like "*VGA compatible controller*" }) -or "No GPUs detected" }
-        "macOS" { return (& system_profiler SPDisplaysDataType | Where-Object { $_ -like "*Chipset Model:*" }) -or "No GPUs detected" }
+        "Linux" {
+            $gpuInfo = lspci | Where-Object { $_ -like "*VGA compatible controller*" }
+            if ($gpuInfo) { 
+                return $gpuInfo 
+            } else { 
+                return "No GPUs detected" 
+            }
+        }
+        "macOS" { 
+            $gpuInfo = system_profiler SPDisplaysDataType | Where-Object { $_ -like "*Chipset Model:*" }
+            if ($gpuInfo) {
+                return $gpuInfo
+            } else {
+                return "No GPUs detected"
+            }
+        }
         default { return "Unsupported OS for GPU detection" }
     }
 }
