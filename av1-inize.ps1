@@ -155,6 +155,10 @@ $multiPassChoice = $host.ui.PromptForChoice("Encoding Passes", "Select the encod
 # Clear the terminal after initial configuration
 Clear-Host
 
+# Track file sizes.
+$totalOriginalSize = 0
+$totalConvertedSize = 0
+
 # Display script title and version
 Write-Host "AV1-inizer v$($version) by cryptofyre" -ForegroundColor Cyan
 
@@ -163,6 +167,10 @@ foreach ($file in $videoFiles) {
     $fileCounter++
     $originalFileSize = (Get-Item $file.FullName).Length
 	$skipFile = $false
+	
+	if (Test-Path $file.FullName) {
+		$totalOriginalSize += (Get-Item $file.FullName).Length
+	}
 	
 	# Adjust destination file path with chosen output format
     $destFile = "${destDir}\$($file.BaseName)$outputFormat"
@@ -240,8 +248,17 @@ foreach ($file in $videoFiles) {
             ffmpeg -i "$($file.FullName)" -c:v $encoder -crf $rf -b:v 0 -pass 1 -vsync $vsyncOption -an -f null -y NUL 2>$null
             # Second pass
             ffmpeg -i "$($file.FullName)" -c:v $encoder -crf $rf -b:v 0 -pass 2 -vsync $vsyncOption -async $asyncAudio -copyts -map_metadata 0 -c:a copy -c:s copy "$destFile" 2>$null
+			
+			if (Test-Path $destFile) {
+				$totalConvertedSize += (Get-Item $destFile).Length
+			}
+			
         } else { # Single-Pass Encoding
             ffmpeg -i "$($file.FullName)" -c:v $encoder -crf $rf -b:v 0 -vsync $vsyncOption -async $asyncAudio -copyts -map_metadata 0 -c:a copy -c:s copy "$destFile" 2>$null
+			
+			if (Test-Path $destFile) {
+				$totalConvertedSize += (Get-Item $destFile).Length
+			}
         }
 
         if ($LastExitCode -ne 0) { throw }
@@ -258,6 +275,10 @@ foreach ($file in $videoFiles) {
             0 { 
                 Write-Host "Falling back to CPU encoding (libaom-av1)." -ForegroundColor Yellow
                 ffmpeg -i "$($file.FullName)" -c:v libaom-av1 -crf $rf -vsync $vsyncOption -async $asyncAudio -map_metadata 0 -b:v 0 -c:a copy -c:s copy "$destFile"
+				
+				if (Test-Path $destFile) {
+					$totalConvertedSize += (Get-Item $destFile).Length
+				}
             }
             1 {
                 Write-Host "Skipping file: $($file.Name)" -ForegroundColor Yellow
@@ -286,4 +307,38 @@ foreach ($file in $videoFiles) {
 # Reset the Windows Terminal progress bar to 'none' after completion
 [Console]::Write("$esc]9;4;0$esc\")
 
-Write-Host "Conversion completed."
+# Calculate and display the percentage size reduction or increase
+if ($totalOriginalSize -gt 0) {
+    $sizeChangePercentage = [Math]::Round(($totalConvertedSize / $totalOriginalSize - 1) * 100, 2)
+	$sizeSaved = $totalOriginalSize - $totalConvertedSize
+    $sizeSavedFormatted = Format-FileSize $sizeSaved
+    
+    # Determine the message color and sign
+    if ($sizeChangePercentage -le 0) {
+        $messageColor = "Cyan"
+        $sign = ""
+    } else {
+        $messageColor = "Red"
+        $sign = "+"
+    }
+
+    Write-Host "Total size change: $sign$sizeChangePercentage% ($sizeSavedFormatted saved)" -ForegroundColor $messageColor
+} else {
+    Write-Host "No valid original files to calculate size change." -ForegroundColor Yellow
+}
+
+Write-Host "Conversion completed." -ForegroundColor Blue
+
+# Function to format file size into KB, MB, GB
+function Format-FileSize {
+    param([int64]$bytes)
+    if ($bytes -ge 1GB) {
+        return '{0:0.00} GB' -f ($bytes / 1GB)
+    } elseif ($bytes -ge 1MB) {
+        return '{0:0.00} MB' -f ($bytes / 1MB)
+    } elseif ($bytes -ge 1KB) {
+        return '{0:0.00} KB' -f ($bytes / 1KB)
+    } else {
+        return '{0} bytes' -f $bytes
+    }
+}
