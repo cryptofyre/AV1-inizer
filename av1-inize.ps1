@@ -132,11 +132,11 @@ foreach ($file in $videoFiles) {
         }
     }
 	
-    # Compare file sizes and move the original file if the re-encoded file is larger
+    # Compare file sizes.
     if (Test-Path $destFile) {
         $convertedFileSize = (Get-Item $destFile).Length
         if ($convertedFileSize -gt $originalFileSize) {
-            Move-Item -Path $file.FullName -Destination $destFile -Force
+            Write-Host "Warning: $($file.Name) did not benefit from AV1 encoding." -ForegroundColor Yellow
         }
     } else {
 		if ($LastExitCode -ne 0 -and $userChoice -ne 1) {
