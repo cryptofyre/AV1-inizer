@@ -164,7 +164,7 @@ foreach ($file in $videoFiles) {
 
     try {
         # Attempt AV1 encoding with GPU and error handling
-        ffmpeg -i "$($file.FullName)" -c:v $encoder -crf $rf -b:v 0 -c:a copy -c:s copy "$destFile" 2>$null
+        ffmpeg -i "$($file.FullName)" -c:v $encoder -crf $rf -b:v 0 -vsync passthrough -map_metadata 0 -c:a copy -c:s copy "$destFile" 2>$null
 
         if ($LastExitCode -ne 0) { throw }
     } catch {
@@ -179,7 +179,7 @@ foreach ($file in $videoFiles) {
         switch ($userChoice) {
             0 { 
                 Write-Host "Falling back to CPU encoding (libaom-av1)." -ForegroundColor Yellow
-                ffmpeg -i "$($file.FullName)" -c:v libaom-av1 -crf 30 -b:v 0 -c:a copy -c:s copy "$destFile"
+                ffmpeg -i "$($file.FullName)" -c:v libaom-av1 -crf 30 -vsync passthrough -map_metadata 0 -b:v 0 -c:a copy -c:s copy "$destFile"
             }
             1 {
                 Write-Host "Skipping file: $($file.Name)" -ForegroundColor Yellow
