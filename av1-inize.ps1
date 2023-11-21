@@ -56,7 +56,7 @@ $destDir = "${sourceDir}\converted"
 
 # Create the destination directory if it doesn't exist
 if (-not (Test-Path -Path $destDir)) {
-    New-Item -ItemType Directory -Path $destDir
+    [void](New-Item -ItemType Directory -Path $destDir)
 }
 
 # Get all files in the source directory and then filter for video files
@@ -71,6 +71,27 @@ $fileCounter = 0
 if ($totalFiles -eq 0) {
     Write-Host "No video files found in the specified directory."
     exit
+}
+
+# Prompt user if they would like to use their own RF values, or allow the script to automatically determine.
+$userChoiceRF = $host.ui.PromptForChoice("RF Value Selection", "Choose how you want to set the RF value:", 
+                    @("&Automatic (Based on resolution and orientation)", "&Manual (Specify your own RF value)"), 0)
+					
+# Variable to hold the RF value
+$rf = 0
+
+# Check user choice for RF value
+if ($userChoiceRF -eq 0) { # Automatic
+    # Automatic RF value logic (will be set in the loop for each file)
+    $rf = "Automatic"
+} else { # Manual
+    # Prompt user for manual RF value
+    $rf = Read-Host "Enter your preferred RF value (Numeric values only)"
+    # Validate and convert to integer
+    if (-not [int]::TryParse($rf, [ref]$null)) {
+        Write-Host "Invalid RF value. Please enter a numeric value."
+        exit
+    }
 }
 
 # Clear the terminal after initial configuration
@@ -92,31 +113,35 @@ foreach ($file in $videoFiles) {
     $width = [int]$resolution[0]
     $height = [int]$resolution[1]
 	$isPortrait = $height -gt $width
-
-	# Default out of range RF
-	$rf = 30
 	
-	# Determine RF setting based on resolution and orientation
-    if ($isPortrait) {
-        if ($width -le 852 -and $height -le 480) { # 480p Portrait
-            $rf = 24
-        } elseif ($width -le 1280 -and $height -le 720) { # 720p Portrait
-            $rf = 27
-        } elseif ($width -le 1920 -and $height -le 1080) { # 1080p Portrait
-            $rf = 27
-        } elseif ($width -le 2160 -and $height -le 3840) { # 4K Portrait
-            $rf = 29
-        }
-    } else {
-        if ($width -le 852 -and $height -le 480) { # 480p
-            $rf = 19
-        } elseif ($width -le 1280 -and $height -le 720) { # 720p
-            $rf = 20
-        } elseif ($width -le 1920 -and $height -le 1080) { # 1080p
-            $rf = 23
-        } elseif ($width -le 3840 -and $height -le 2160) { # 4K
-            $rf = 25
-        }
+	
+	# Automatically determine RF level based on clip resolution.
+	if ($rf -eq "Automatic") {
+		# Default out of range RF
+		$rf = 30
+	
+		# Determine RF setting based on resolution and orientation
+		if ($isPortrait) {
+			if ($width -le 852 -and $height -le 480) { # 480p Portrait
+				$rf = 24
+			} elseif ($width -le 1280 -and $height -le 720) { # 720p Portrait
+				$rf = 27
+			} elseif ($width -le 1920 -and $height -le 1080) { # 1080p Portrait
+				$rf = 27
+			} elseif ($width -le 2160 -and $height -le 3840) { # 4K Portrait
+				$rf = 29
+			}
+		} else {
+			if ($width -le 852 -and $height -le 480) { # 480p
+				$rf = 19
+			} elseif ($width -le 1280 -and $height -le 720) { # 720p
+				$rf = 20
+			} elseif ($width -le 1920 -and $height -le 1080) { # 1080p
+				$rf = 23
+			} elseif ($width -le 3840 -and $height -le 2160) { # 4K
+				$rf = 25
+			}
+		}
     }
 	
 	# Update the progress bar with current job information
