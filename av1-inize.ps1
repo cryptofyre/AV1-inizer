@@ -20,7 +20,7 @@ $gpus | foreach {
 
 # Determine available encoder options based on detected GPUs
 $encoderOptions = @("CPU (libaom-av1)")
-if ($gpus -match "NVIDIA") { $encoderOptions += "NVIDIA NVENC (AV1)" }
+if ($gpus -match "NVIDIA") { $encoderOptions += "NVIDIA NVENC (av1_nvenc)" }
 if ($gpus -match "AMD") { $encoderOptions += "AMD AV1 Encoder (amf_av1)" }
 if ($gpus -match "Intel") { $encoderOptions += "Intel AV1 Encoder (av1_qsv)" }
 
