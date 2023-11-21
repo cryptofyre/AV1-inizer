@@ -5,7 +5,7 @@ $Host.UI.RawUI.WindowTitle = "AV1-inizer"
 $esc = [char]27
 [Console]::Write("$esc]9;4;0$esc\")
 
-$version = "1.1"
+$version = "1.2"
 
 # Display script title and version
 Write-Host "AV1-inizer v$($version) by cryptofyre" -ForegroundColor Cyan
@@ -94,6 +94,10 @@ if ($userChoiceRF -eq 0) { # Automatic
     }
 }
 
+# Prompt user for encoding pass preference
+$multiPassChoice = $host.ui.PromptForChoice("Encoding Passes", "Select the encoding mode:", 
+                    @("&Single-Pass Encoding", "&Multi-Pass Encoding"), 0)
+
 # Clear the terminal after initial configuration
 Clear-Host
 
@@ -139,10 +143,22 @@ foreach ($file in $videoFiles) {
 			} elseif ($width -le 1920 -and $height -le 1080) { # 1080p
 				$rf = 23
 			} elseif ($width -le 3840 -and $height -le 2160) { # 4K
-				$rf = 25
+				$rf = 27
 			}
 		}
     }
+	
+    # Probe the video file to get frame rate and other details
+    $videoDetails = & ffprobe -v error -select_streams v -show_entries stream=r_frame_rate,avg_frame_rate,codec_name -of default=noprint_wrappers=1:nokey=1 "$($file.FullName)"
+    $frameRate = $videoDetails[0]
+    $avgFrameRate = $videoDetails[1]
+    
+    # Determine if frame rate is variable (VFR) or constant (CFR)
+    $isVFR = $frameRate -ne $avgFrameRate
+
+    # Set async & vsync option based on frame rate analysis
+    $vsyncOption = $isVFR ? "0" : "1"
+	$asyncAudio = $isVFR ? "0" : "1"
 	
 	# Update the progress bar with current job information
     $progressMessage = "Encoding file ($fileCounter of $totalFiles): $($file.Name) using encoding level $($rf)"
@@ -163,8 +179,14 @@ foreach ($file in $videoFiles) {
     }
 
     try {
-        # Attempt AV1 encoding with GPU and error handling
-        ffmpeg -i "$($file.FullName)" -c:v $encoder -crf $rf -b:v 0 -vsync passthrough -map_metadata 0 -c:a copy -c:s copy "$destFile" 2>$null
+		if ($multiPassChoice -eq 1) { # Multi-Pass Encoding
+            # First pass
+            ffmpeg -i "$($file.FullName)" -c:v $encoder -crf $rf -b:v 0 -pass 1 -vsync $vsyncOption -an -f null -y NUL 2>$null
+            # Second pass
+            ffmpeg -i "$($file.FullName)" -c:v $encoder -crf $rf -b:v 0 -pass 2 -vsync $vsyncOption -async $asyncAudio -copyts -map_metadata 0 -c:a copy -c:s copy "$destFile" 2>$null
+        } else { # Single-Pass Encoding
+            ffmpeg -i "$($file.FullName)" -c:v $encoder -crf $rf -b:v 0 -vsync $vsyncOption -async $asyncAudio -copyts -map_metadata 0 -c:a copy -c:s copy "$destFile" 2>$null
+        }
 
         if ($LastExitCode -ne 0) { throw }
     } catch {
@@ -179,7 +201,7 @@ foreach ($file in $videoFiles) {
         switch ($userChoice) {
             0 { 
                 Write-Host "Falling back to CPU encoding (libaom-av1)." -ForegroundColor Yellow
-                ffmpeg -i "$($file.FullName)" -c:v libaom-av1 -crf 30 -vsync passthrough -map_metadata 0 -b:v 0 -c:a copy -c:s copy "$destFile"
+                ffmpeg -i "$($file.FullName)" -c:v libaom-av1 -crf $rf -vsync $vsyncOption -async $asyncAudio -map_metadata 0 -b:v 0 -c:a copy -c:s copy "$destFile"
             }
             1 {
                 Write-Host "Skipping file: $($file.Name)" -ForegroundColor Yellow
