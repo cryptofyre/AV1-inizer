@@ -43,24 +43,45 @@ if (-not ($selectedEncoderIndex -ge 0 -and $selectedEncoderIndex -lt $encoderOpt
     exit
 }
 
-# Prompt the user for the source directory
+# Prompt user for recursive file fetching
+$recursiveChoice = $host.ui.PromptForChoice("File Fetching", "Would you like to fetch files recursively from subfolders?", 
+                    @("&Yes", "&No"), 1)
+
+# Prompt user for output directory choice
+$outputDirChoice = $host.ui.PromptForChoice("Output Directory", "Choose the output directory:", 
+                    @("&Automatic ('converted/' folder)", "&Custom (Specify your own path)"), 0)
+					
+# Prompt user for output file format
+$outputFormatChoice = $host.ui.PromptForChoice("Output File Format", "Select the output file format:", 
+                    @("&MP4", "&MKV"), 0)
+$outputFormat = @(".mp4", ".mkv")[$outputFormatChoice]
+
+# Define source and destination directories
 $sourceDir = Read-Host "Please enter the path to the video files"
-
-# Validate the input and exit if the path is not valid
-if (-not (Test-Path -Path $sourceDir)) {
-    Write-Host "The path you entered does not exist. Please rerun the script and enter a valid path."
-    exit
+if ($outputDirChoice -eq 1) {
+    $destDir = Read-Host "Please enter the path for the output files"
+} else {
+    $destDir = "${sourceDir}\converted"
 }
-
-$destDir = "${sourceDir}\converted"
 
 # Create the destination directory if it doesn't exist
 if (-not (Test-Path -Path $destDir)) {
     [void](New-Item -ItemType Directory -Path $destDir)
 }
 
-# Get all files in the source directory and then filter for video files
-$allFiles = Get-ChildItem -Path $sourceDir -File
+# Get all files in the source directory
+if ($recursiveChoice -eq 0) {
+    $allFiles = Get-ChildItem -Path $sourceDir -Recurse -File
+} else {
+    $allFiles = Get-ChildItem -Path $sourceDir -File
+}
+
+# Exclude files from the destination directory if recursive fetching is enabled
+if ($recursiveChoice -eq 0) {
+    $allFiles = $allFiles | Where-Object { $_.FullName -notlike "$destDir*" }
+}
+
+# Filter for video files
 $videoFiles = $allFiles | Where-Object { $_.Extension -match "^\.(mov|MOV|mp4|MP4|mkv|MKV|webm|WEBM)$" }
 
 # Total number of files
@@ -108,8 +129,10 @@ Write-Host "AV1-inizer v$($version) by cryptofyre" -ForegroundColor Cyan
 foreach ($file in $videoFiles) {
     $fileCounter++
     $originalFileSize = (Get-Item $file.FullName).Length
-    $destFile = "${destDir}\$($file.BaseName)_AV1.mkv"
 	$skipFile = $false
+	
+	# Adjust destination file path with chosen output format
+    $destFile = "${destDir}\$($file.BaseName)$outputFormat"
 	
 	# Get video resolution
     $videoInfo = ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0:s=x "$($file.FullName)"
