@@ -93,7 +93,10 @@ foreach ($file in $videoFiles) {
     $height = [int]$resolution[1]
 	$isPortrait = $height -gt $width
 
-# Determine RF setting based on resolution and orientation
+	# Default out of range RF
+	$rf = 30
+	
+	# Determine RF setting based on resolution and orientation
     if ($isPortrait) {
         if ($width -le 852 -and $height -le 480) { # 480p Portrait
             $rf = 24
@@ -106,17 +109,15 @@ foreach ($file in $videoFiles) {
         }
     } else {
         if ($width -le 852 -and $height -le 480) { # 480p
-            $rf = 22
+            $rf = 19
         } elseif ($width -le 1280 -and $height -le 720) { # 720p
-            $rf = 25
+            $rf = 20
         } elseif ($width -le 1920 -and $height -le 1080) { # 1080p
-            $rf = 25
+            $rf = 23
         } elseif ($width -le 3840 -and $height -le 2160) { # 4K
             $rf = 25
         }
     }
-    # Default RF value if resolution is outside specified ranges
-    $rf = $rf -or 30
 	
 	# Update the progress bar with current job information
     $progressMessage = "Encoding file ($fileCounter of $totalFiles): $($file.Name) using encoding level $($rf)"
